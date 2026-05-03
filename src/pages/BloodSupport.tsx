@@ -1,13 +1,50 @@
-import { Droplet, MapPin, Search, AlertTriangle, PhoneCall } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Droplet, MapPin, Search, AlertTriangle, PhoneCall, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { db } from '../firebase';
+import { collection, query, limit, onSnapshot } from 'firebase/firestore';
 
-const donors = [
-  { id: 1, name: 'Sarah Jenkins', bloodGroup: 'O-', distance: '0.8 km', match: true },
-  { id: 2, name: 'Michael Chen', bloodGroup: 'O+', distance: '1.2 km', match: false },
-  { id: 3, name: 'David Smith', bloodGroup: 'O-', distance: '2.5 km', match: true },
-];
+interface Donor {
+  id: string;
+  name: string;
+  bloodGroup: string;
+  distance: string;
+  match: boolean;
+  phone?: string;
+}
 
 export default function BloodSupport() {
+  const [donors, setDonors] = useState<Donor[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Listen to donors collection
+    const q = query(collection(db, 'donors'), limit(5));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const donorsData: Donor[] = [];
+      snapshot.forEach((doc) => {
+        donorsData.push({ id: doc.id, ...doc.data() } as Donor);
+      });
+      
+      // If db is empty, fallback to mock data for presentation purposes
+      if (donorsData.length === 0) {
+        setDonors([
+          { id: '1', name: 'Sarah Jenkins', bloodGroup: 'O-', distance: '0.8 km', match: true },
+          { id: '2', name: 'Michael Chen', bloodGroup: 'O+', distance: '1.2 km', match: false },
+          { id: '3', name: 'David Smith', bloodGroup: 'O-', distance: '2.5 km', match: true },
+        ]);
+      } else {
+        setDonors(donorsData);
+      }
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching donors:", error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   return (
     <div className="min-h-screen bg-slate-50 p-4 pb-24">
       <header className="pt-4 mb-6">
@@ -53,34 +90,40 @@ export default function BloodSupport() {
       </div>
 
       <div className="space-y-3">
-        {donors.map((donor, idx) => (
-          <motion.div 
-            key={donor.id}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: idx * 0.1 }}
-            className={`bg-white rounded-2xl p-4 flex items-center justify-between border ${donor.match ? 'border-green-200 shadow-sm shadow-green-50' : 'border-slate-100'}`}
-          >
-            <div className="flex items-center gap-4">
-              <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg ${donor.match ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>
-                {donor.bloodGroup}
+        {loading ? (
+          <div className="flex justify-center p-8">
+            <Loader2 className="w-8 h-8 text-red-500 animate-spin" />
+          </div>
+        ) : (
+          donors.map((donor, idx) => (
+            <motion.div 
+              key={donor.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: idx * 0.1 }}
+              className={`bg-white rounded-2xl p-4 flex items-center justify-between border ${donor.match ? 'border-green-200 shadow-sm shadow-green-50' : 'border-slate-100'}`}
+            >
+              <div className="flex items-center gap-4">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg ${donor.match ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>
+                  {donor.bloodGroup}
+                </div>
+                <div>
+                  <h4 className="font-semibold text-slate-800">{donor.name}</h4>
+                  <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                    <MapPin className="w-3 h-3" />
+                    {donor.distance} away
+                  </p>
+                </div>
               </div>
-              <div>
-                <h4 className="font-semibold text-slate-800">{donor.name}</h4>
-                <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                  <MapPin className="w-3 h-3" />
-                  {donor.distance} away
-                </p>
-              </div>
-            </div>
-            
-            {donor.match && (
-              <button className="bg-green-600 text-white p-2.5 rounded-full hover:bg-green-700 transition-colors shadow-sm">
-                <PhoneCall className="w-4 h-4" />
-              </button>
-            )}
-          </motion.div>
-        ))}
+              
+              {donor.match && (
+                <button className="bg-green-600 text-white p-2.5 rounded-full hover:bg-green-700 transition-colors shadow-sm">
+                  <PhoneCall className="w-4 h-4" />
+                </button>
+              )}
+            </motion.div>
+          ))
+        )}
       </div>
     </div>
   );

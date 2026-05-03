@@ -1,11 +1,21 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, User, Phone, Mail, Droplet, Activity, ChevronRight } from 'lucide-react';
+import { MapPin, User, Phone, Mail, Droplet, Activity, ChevronRight, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { db, ensureAuthenticated } from '../firebase';
+import { doc, setDoc } from 'firebase/firestore';
 
 export default function SignIn() {
   const navigate = useNavigate();
   const [locationEnabled, setLocationEnabled] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  
+  const [formData, setFormData] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    bloodGroup: ''
+  });
 
   const handleLocation = () => {
     // Mock asking for location
@@ -14,9 +24,28 @@ export default function SignIn() {
     }, 1000);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    navigate('/dashboard');
+    setIsLoading(true);
+    try {
+      // 1. Authenticate anonymously
+      const user: any = await ensureAuthenticated();
+      
+      // 2. Save user profile to Firestore
+      await setDoc(doc(db, 'users', user.uid), {
+        ...formData,
+        locationEnabled,
+        createdAt: new Date().toISOString()
+      }, { merge: true });
+
+      // 3. Navigate to Dashboard
+      navigate('/dashboard');
+    } catch (error) {
+      console.error("Error saving profile:", error);
+      alert("Failed to create profile. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -46,23 +75,49 @@ export default function SignIn() {
           <div className="space-y-4">
             <div className="relative">
               <User className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
-              <input type="text" placeholder="Full Name" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" required />
+              <input 
+                type="text" 
+                placeholder="Full Name" 
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" 
+                required 
+                value={formData.name}
+                onChange={e => setFormData({...formData, name: e.target.value})}
+              />
             </div>
 
             <div className="relative">
               <Phone className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
-              <input type="tel" placeholder="Mobile Number" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" required />
+              <input 
+                type="tel" 
+                placeholder="Mobile Number" 
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" 
+                required 
+                value={formData.phone}
+                onChange={e => setFormData({...formData, phone: e.target.value})}
+              />
             </div>
 
             <div className="relative">
               <Mail className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
-              <input type="email" placeholder="Email (Gmail)" className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" required />
+              <input 
+                type="email" 
+                placeholder="Email (Gmail)" 
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" 
+                required 
+                value={formData.email}
+                onChange={e => setFormData({...formData, email: e.target.value})}
+              />
             </div>
 
             <div className="relative">
               <Droplet className="absolute left-3 top-3 w-5 h-5 text-red-400" />
-              <select className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-600 appearance-none">
-                <option value="">Select Blood Group</option>
+              <select 
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-600 appearance-none"
+                value={formData.bloodGroup}
+                onChange={e => setFormData({...formData, bloodGroup: e.target.value})}
+                required
+              >
+                <option value="" disabled>Select Blood Group</option>
                 <option value="A+">A+</option>
                 <option value="A-">A-</option>
                 <option value="B+">B+</option>
@@ -88,10 +143,17 @@ export default function SignIn() {
 
           <button 
             type="submit" 
-            className="w-full bg-slate-900 text-white font-medium py-3.5 rounded-xl hover:bg-slate-800 transition-colors flex items-center justify-center gap-2 mt-6"
+            disabled={isLoading}
+            className="w-full bg-slate-900 text-white font-medium py-3.5 rounded-xl hover:bg-slate-800 transition-colors flex items-center justify-center gap-2 mt-6 disabled:opacity-70"
           >
-            Continue to Dashboard
-            <ChevronRight className="w-5 h-5" />
+            {isLoading ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <>
+                Continue to Dashboard
+                <ChevronRight className="w-5 h-5" />
+              </>
+            )}
           </button>
         </form>
       </motion.div>

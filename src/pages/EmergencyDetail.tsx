@@ -1,16 +1,42 @@
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Camera, Mic, Clock, ShieldAlert, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, Camera, Mic, Clock, ShieldAlert, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { db, auth } from '../firebase';
+import { collection, addDoc } from 'firebase/firestore';
 
 export default function EmergencyDetail() {
   const { type } = useParams();
   const navigate = useNavigate();
+  const [symptoms, setSymptoms] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Mock data mapping based on type
   const title = type?.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || 'Emergency';
 
+  const handleRequestHelp = async () => {
+    setIsSubmitting(true);
+    try {
+      const user = auth.currentUser;
+      await addDoc(collection(db, 'emergencies'), {
+        type: type,
+        symptoms,
+        userId: user?.uid || 'anonymous',
+        status: 'pending',
+        timestamp: new Date().toISOString()
+      });
+      alert("Emergency request sent successfully. Help is on the way!");
+      navigate('/tracking');
+    } catch (error) {
+      console.error("Error submitting emergency:", error);
+      alert("Failed to submit request. Please call emergency services directly.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
-    <div className="bg-slate-50 min-h-screen pb-20">
+    <div className="bg-slate-50 min-h-screen pb-24">
       <div className="bg-red-600 text-white pt-6 pb-12 px-4 rounded-b-[40px] relative">
         <button onClick={() => navigate(-1)} className="absolute top-6 left-4 p-2 bg-white/20 rounded-full hover:bg-white/30 transition-colors">
           <ArrowLeft className="w-6 h-6" />
@@ -33,6 +59,8 @@ export default function EmergencyDetail() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl shadow-sm p-4">
           <h3 className="font-semibold text-slate-800 mb-3">Describe Symptoms</h3>
           <textarea 
+            value={symptoms}
+            onChange={(e) => setSymptoms(e.target.value)}
             placeholder="Type symptoms here..." 
             className="w-full bg-slate-50 border-none rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 min-h-[80px] resize-none"
           ></textarea>
@@ -46,10 +74,18 @@ export default function EmergencyDetail() {
               Voice Input
             </button>
           </div>
+          
+          <button 
+            onClick={handleRequestHelp}
+            disabled={isSubmitting}
+            className="w-full mt-4 bg-red-600 text-white font-bold py-3.5 rounded-xl hover:bg-red-700 transition-colors shadow-md flex items-center justify-center gap-2 disabled:opacity-70"
+          >
+            {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Request Help Now'}
+          </button>
         </motion.div>
 
         {/* AI Response Section */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white rounded-2xl shadow-sm overflow-hidden">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white rounded-2xl shadow-sm overflow-hidden mb-8">
           <div className="bg-red-50 p-4 border-b border-red-100 flex items-center gap-2">
             <ShieldAlert className="w-5 h-5 text-red-600" />
             <h3 className="font-bold text-red-800">Immediate Actions (Critical)</h3>
